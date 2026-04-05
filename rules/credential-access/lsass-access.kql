@@ -1,1 +1,89 @@
+// Rule Name      : LSASS Memory Access – Credential Dumping Attempt
+// MITRE Tactic   : Credential Access
+// MITRE Technique: T1003.001 – OS Credential Dumping: LSASS Memory
+// Severity       : Critical
+// Data Sources   : DeviceProcessEvents, DeviceFileEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 1 hour
+// False Positives: AV/EDR products, crash dump tools (WerFault), legitimate sysadmin tools
+// Author         : Raunak Sahu
+// Last Updated   : 2025-06-01
+//
+// Description:
+//   LSASS holds NTLM hashes, Kerberos tickets, and plaintext credentials in memory.
+//   Attackers dump it using Mimikatz, ProcDump, Task Manager, or comsvcs.dll.
+//   MDE detects LSASS access natively but this hunt catches method-specific patterns
+//   that may not trigger built-in alerts — especially LOLBin-based dumping.
+//   Seen in: Almost every post-exploitation framework and ransomware pre-deployment.
+//
+// Tuning Notes:
+//   - MDE's built-in Credential Access alerts cover many of these — this rule catches
+//     additional patterns and enriches context for investigation
+//   - WerFault.exe accessing LSASS is legitimate (crash reporting) — exclude by hash
+//   - Correlate any hit with lateral movement within the next 30 minutes
 
+// === METHOD 1: Known dump tools or suspicious processes accessing lsass.exe ===
+let LSASSDumpTools = DeviceProcessEvents
+| where Timestamp >= ago(1h)
+| where FileName =~ "lsass.exe" or ProcessCommandLine has "lsass"
+| where InitiatingProcessFileName in~ (
+    "procdump.exe", "procdump64.exe", "sqldumper.exe", "werfault.exe",
+    "taskmgr.exe", "mmc.exe", "ntdsutil.exe"
+  )
+   or ProcessCommandLine has_any ("lsass", "sekurlsa", "logonpasswords")
+| extend Method   = "Known dump tool or CLI reference to lsass"
+| extend Severity = "Critical"
+| project Timestamp, DeviceName, AccountName, Method, Severity,
+          ProcessCommandLine, InitiatingProcessFileName,
+          InitiatingProcessCommandLine, SHA256;
+
+// === METHOD 2: comsvcs.dll MiniDump (LOLBin dump) ===
+// rundll32 comsvcs.dll, MiniDump <lsass_pid> <outfile> full
+let ComsvcsDump = DeviceProcessEvents
+| where Timestamp >= ago(1h)
+| where FileName =~ "rundll32.exe"
+| where ProcessCommandLine has "comsvcs" and ProcessCommandLine has_any ("MiniDump", "minidump", "#24")
+| extend Method   = "comsvcs.dll MiniDump (LOLBin)"
+| extend Severity = "Critical"
+| project Timestamp, DeviceName, AccountName, Method, Severity,
+          ProcessCommandLine, InitiatingProcessFileName,
+          InitiatingProcessCommandLine, SHA256;
+
+// === METHOD 3: LSASS dump file created on disk ===
+let DumpFileCreated = DeviceFileEvents
+| where Timestamp >= ago(1h)
+| where FileName has_any ("lsass", "lsaas")
+| where FileName endswith ".dmp" or FileName endswith ".bin" or FileName endswith ".zip"
+| extend Method   = "LSASS dump file created on disk"
+| extend Severity = "Critical"
+| extend ProcessCommandLine = InitiatingProcessCommandLine
+| extend InitiatingProcessFileName = InitiatingProcessFileName
+| extend InitiatingProcessCommandLine = InitiatingProcessCommandLine
+| project Timestamp, DeviceName, AccountName, Method, Severity,
+          ProcessCommandLine, InitiatingProcessFileName,
+          InitiatingProcessCommandLine, SHA256 = InitiatingProcessSHA256;
+
+// === METHOD 4: Mimikatz-specific command patterns ===
+let MimikatzCLI = DeviceProcessEvents
+| where Timestamp >= ago(1h)
+| where ProcessCommandLine has_any (
+    "sekurlsa", "logonpasswords", "lsadump", "dcsync",
+    "privilege::debug", "token::elevate", "kerberos::list",
+    "mimikatz", "mimilib", "kiwi"
+  )
+| extend Method   = "Mimikatz / Kiwi command pattern"
+| extend Severity = "Critical"
+| project Timestamp, DeviceName, AccountName, Method, Severity,
+          ProcessCommandLine, InitiatingProcessFileName,
+          InitiatingProcessCommandLine, SHA256;
+
+// === UNION ALL ===
+union LSASSDumpTools, ComsvcsDump, DumpFileCreated, MimikatzCLI
+| extend AlertDetail = strcat(
+    "[CRITICAL] LSASS credential dump attempt on [", DeviceName, "] by [", AccountName, "]. ",
+    "Method: ", Method, ". Process: [", InitiatingProcessFileName, "]. CLI: ", ProcessCommandLine
+  )
+| project Timestamp, DeviceName, AccountName, Severity, Method,
+          ProcessCommandLine, InitiatingProcessFileName, AlertDetail, SHA256
+| sort by Timestamp desc
