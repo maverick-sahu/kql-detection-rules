@@ -4,8 +4,7 @@
 ![MITRE ATT&CK](https://img.shields.io/badge/MITRE%20ATT%26CK-v14-red)
 ![Platform](https://img.shields.io/badge/platform-Microsoft%20Defender%20XDR-informational)
 ![Tables](https://img.shields.io/badge/tables-MDE%20Advanced%20Hunting-blueviolet)
-![Maintained](https://img.shields.io/badge/maintained-yes-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+
 
 > Production-ready KQL detection rules for **Microsoft Defender XDR Advanced Hunting**. Built from 4.5 years of enterprise detection work at Deloitte USI — written for real SOC environments, not CTF labs.
 
