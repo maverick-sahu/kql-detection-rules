@@ -1,7 +1,6 @@
 // Rule Name      : LSASS Parent Process Validation
 // MITRE Tactic   : Defense Evasion, Credential Access
 // MITRE Technique: T1036 – Masquerading
-//                  T1003.001 – OS Credential Dumping: LSASS Memory
 // Severity       : High
 // Data Sources   : DeviceProcessEvents
 // Platform       : Microsoft Defender XDR → Advanced Hunting
