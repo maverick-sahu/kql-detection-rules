@@ -1,0 +1,27 @@
+// Rule Name      : LSA Notification Package Registry Modification
+// MITRE Tactic   : Persistence
+// MITRE Technique: T1547.002 – Authentication Package
+// Severity       : High
+// Data Sources   : DeviceRegistryEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Legitimate authentication package installation, security software, enterprise identity solutions
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects modifications to the Windows LSA Notification Packages registry value.
+//   - Attackers may modify this registry key to register a malicious authentication package, allowing code to execute within the LSASS process during system startup and establish persistence.
+//
+// Tuning Notes:
+//   - Exclude approved authentication packages and identity solutions.
+//   - Correlate with DLL creation, LSASS image loads, and credential dumping activity.
+//   - Validate whether the referenced DLL is Microsoft-signed.
+// 
+DeviceRegistryEvents
+| where Timestamp >= ago(1d)
+| where RegistryKey contains @"Control\Lsa"
+| where RegistryValueName == "Notification Packages"
+| where ActionType == "RegistryValueSet"
+| project Timestamp, DeviceName, DeviceId, RegistryKey, RegistryValueName, RegistryValueData, ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName, InitiatingProcessAccountDomain, ReportId
