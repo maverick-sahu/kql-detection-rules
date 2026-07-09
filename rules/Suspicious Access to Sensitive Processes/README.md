@@ -12,8 +12,7 @@ The rule monitors process access events and identifies processes requesting acce
 
 | Category | Mapping |
 |----------|---------|
-| Tactic | Credential Access |
-| Tactic | Defense Evasion |
+| Tactic | Credential Access & Defense Evasion |
 | Technique | T1003.001 – OS Credential Dumping: LSASS Memory & T1055 – Process Injection |
 
 ---
