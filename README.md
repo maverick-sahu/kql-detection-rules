@@ -71,14 +71,14 @@ kql-detection-rules/
 
 | Tactic | Rules | Techniques Covered |
 |--------|:-----:|--------------------|
-| Initial Access | 1 | T1078 |
-| Execution | 2 | T1059.001, T1204.002 |
-| Persistence | 1 | T1053.005 |
-| Defense Evasion | 1 | T1562.001 |
-| Credential Access | 2 | T1539, T1003.001 |
-| Lateral Movement | 1 | T1021.001 |
-| Exfiltration | 1 | T1048.003 |
-| **Total** | **9** | **9 techniques across 7 tactics** |
+| Initial Access | 0 |  |
+| Execution | 0 |  |
+| Persistence | 0 |  |
+| Defense Evasion | 0 |  |
+| Credential Access | 0 |  |
+| Lateral Movement | 0 |  |
+| Exfiltration | 0 |  |
+| **Total** | **0** | **9 techniques across 7 tactics** |
 
 Full ATT&CK Navigator layer → [docs/MITRE_COVERAGE.md](docs/MITRE_COVERAGE.md)
 
@@ -125,20 +125,6 @@ Full ATT&CK Navigator layer → [docs/MITRE_COVERAGE.md](docs/MITRE_COVERAGE.md)
 
 ---
 
-## How rules are tested
-
-Every rule goes through this validation process before being published:
-
-**1. Historical log testing** — queries are run against historical MDE Advanced Hunting data to confirm they fire on known-malicious activity and surface false positive sources.
-
-**2. Risk scoring and threshold tuning** — where applicable, rules use a scoring model rather than a binary match. This reduces noise significantly compared to simple string-match rules.
-
-**3. UAT in staging** — rules are peer-reviewed and validated against staging data before production deployment, mirroring the UAT process used in enterprise MXDR operations.
-
-**4. Alert detail review** — the `AlertDetail` field in every rule is written to give a SOC analyst enough context to make a triage decision without opening a second tool.
-
----
-
 ## Rule header format
 
 Every `.kql` file uses this standard header:
@@ -167,37 +153,6 @@ Every `.kql` file uses this standard header:
 4. Review the **tuning notes** in the file header before using in production
 5. To schedule as a custom detection: **Create detection rule** → set frequency and action (alert / isolate device / etc.)
 6. Map entity fields (DeviceName, AccountName, RemoteIP) for enriched alert cards
-
----
-
-## Recently added
-
-| Date | Rule | Technique |
-|------|------|-----------|
-| 2025-06-01 | [lsass-access.kql](rules/credential-access/lsass-access.kql) | T1003.001 – LSASS dump |
-| 2025-06-01 | [web-session-cookie-theft.kql](rules/credential-access/web-session-cookie-theft.kql) | T1539 – Cookie theft |
-| 2025-06-01 | [large-upload-to-external.kql](rules/exfiltration/large-upload-to-external.kql) | T1048.003 – Exfiltration |
-| 2025-06-01 | [rdp-lateral-movement.kql](rules/lateral-movement/rdp-lateral-movement.kql) | T1021.001 – RDP lateral movement |
-| 2025-06-01 | [defender-tampering.kql](rules/defense-evasion/defender-tampering.kql) | T1562.001 – Defender disable |
-| 2025-06-01 | [powershell-encoded-command.kql](rules/execution/powershell-encoded-command.kql) | T1059.001 – PowerShell |
-| 2025-06-01 | [malicious-office-macro.kql](rules/execution/malicious-office-macro.kql) | T1204.002 – Office macro |
-| 2025-06-01 | [scheduled-task-creation.kql](rules/persistence/scheduled-task-creation.kql) | T1053.005 – Scheduled task |
-
----
-
-## Contributing / Roadmap
-
-Planned rules — all targeting MDE Advanced Hunting tables:
-
-- [ ] `credential-access/password-spray.kql` — T1110.003 via `IdentityLogonEvents`
-- [ ] `credential-access/kerberoasting.kql` — T1558.003 via `IdentityLogonEvents`
-- [ ] `lateral-movement/pass-the-hash.kql` — T1550.002 via `DeviceLogonEvents`
-- [ ] `persistence/registry-run-key.kql` — T1547.001 via `DeviceRegistryEvents`
-- [ ] `defense-evasion/lolbas-execution.kql` — T1218 via `DeviceProcessEvents`
-- [ ] `defense-evasion/log-clearing.kql` — T1070.004 via `DeviceProcessEvents`
-- [ ] `exfiltration/staging-compression.kql` — T1560.001 via `DeviceProcessEvents` + `DeviceFileEvents`
-
-To contribute, use the template at [docs/RULE_TEMPLATE.md](docs/RULE_TEMPLATE.md) and open a pull request. Please include tuning notes, known false positive sources, and the specific MDE tables your rule uses.
 
 ---
 
