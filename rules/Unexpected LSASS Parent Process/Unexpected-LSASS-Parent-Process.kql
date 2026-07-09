@@ -1,0 +1,27 @@
+// Rule Name      : LSASS Parent Process Validation
+// MITRE Tactic   : Defense Evasion, Credential Access
+// MITRE Technique: T1036 – Masquerading
+//                  T1003.001 – OS Credential Dumping: LSASS Memory
+// Severity       : High
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 1 hour
+// False Positives: EDR products, forensic tools, Windows recovery scenarios
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - LSASS (Local Security Authority Subsystem Service) is responsible for managing authentication, credentials, and security policies in Windows. 
+//   - During normal system startup, lsass.exe is launched by wininit.exe.
+//   - This rule detects instances where lsass.exe is initiated by an unexpected parent process, which may indicate process tampering, masquerading, or malicious activity. Seen in: Process injection, defense evasion, and credential theft attempts.
+//
+// Tuning Notes:
+//   - Exclude known security or forensic tools if they generate benign events.
+//   - Validate that lsass.exe is Microsoft-signed.
+//   - Correlate with LSASS memory access, credential dumping, or process injection alerts for higher confidence.
+//
+DeviceProcessEvents
+| where FileName contains "lsass.exe"
+| where FolderPath contains "C:\\Windows\\System32\\lsass.exe"
+| where InitiatingProcessFolderPath !contains ("c:\\windows\\system32\\wininit.exe")
