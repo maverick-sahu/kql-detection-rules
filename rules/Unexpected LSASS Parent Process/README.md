@@ -8,8 +8,7 @@ This detection rule identifies instances where **lsass.exe** is observed with an
 
 | Category | Mapping |
 |----------|---------|
-| Tactic | Defense Evasion |
-| Tactic | Credential Access |
+| Tactic | Defense Evasion & Credential Access |
 | Technique | T1036 – Masquerading |
 
 ## Data Sources
