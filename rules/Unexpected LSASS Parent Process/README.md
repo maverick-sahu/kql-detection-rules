@@ -38,16 +38,6 @@ Every 30 minutes
 
 1 hour
 
-## Expected Output
-
-The query returns:
-
-- Timestamp
-- Device Name
-- User Account
-- LSASS executable path
-- Parent process path
-
 ## Investigation Guidance
 
 When this rule generates an alert:
