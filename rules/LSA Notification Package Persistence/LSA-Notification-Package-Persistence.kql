@@ -1,0 +1,47 @@
+// Rule Name      : LSA Notification Package Persistence
+// MITRE Tactic   : Persistence, Credential Access
+// MITRE Technique: T1547.002 – Authentication Package
+// Severity       : Critical
+// Data Sources   : DeviceFileEvents, DeviceRegistryEvents, DeviceImageLoadEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Legitimate LSA authentication packages, security software, enterprise identity solutions
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects potential LSA Authentication Package persistence by correlating three stages of activity: a DLL written to disk, modification of the Notification Packages registry value, and subsequent loading of the DLL by LSASS. 
+//   - Attackers abuse LSA authentication packages to obtain persistence and execute code within the LSASS process during system startup.
+//
+// Tuning Notes:
+//   - Exclude approved authentication packages deployed by Microsoft or enterprise identity products.
+//   - Validate whether the DLL is Microsoft-signed.
+//   - Correlate with credential dumping or LSASS memory access alerts.
+//
+let dllDrops = DeviceFileEvents
+| where Timestamp >= ago(1d)
+| where FileName endswith ".dll"
+| where ActionType in ("FileCreated","FileModified")
+| extend FileNameLower=tolower(FileName)
+| project DeviceId, DeviceName, ReportId, FileNameLower, FolderPath, DropTime=Timestamp, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName, InitiatingProcessAccountDomain, SHA256;
+let regMods = DeviceRegistryEvents
+| where Timestamp >= ago(1d)
+| where RegistryKey contains "Control\\Lsa"
+| where RegistryValueName == "Notification Packages"
+| extend RegDLL=tolower(tostring(RegistryValueData))
+| project DeviceId, DeviceName, ReportId, RegTime=Timestamp, RegistryKey, RegistryValueName, RegDLL, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName, InitiatingProcessAccountDomain;
+let lsassLoads = DeviceImageLoadEvents
+| where Timestamp >= ago(1d)
+| where InitiatingProcessFileName =~ "lsass.exe"
+| where FileName endswith ".dll"
+| extend LoadedDLL=tolower(FileName)
+| project DeviceId,LoadTime=Timestamp,LoadedDLL,LoadPath=FolderPath,SHA256;
+dllDrops
+| join kind=inner regMods on DeviceId
+| where RegTime between (DropTime .. DropTime + 1h)
+| where RegDLL has FileNameLower
+| join kind=inner lsassLoads on DeviceId
+| where LoadedDLL == FileNameLower
+| where LoadTime between (RegTime .. RegTime + 1h)
+| project DeviceName, DeviceId, ReportId, DropTime, RegTime, LoadTime, FileNameLower, FolderPath, LoadPath, RegistryKey, RegistryValueName, InitiatingProcessFileName, InitiatingProcessCommandLine, SHA256
