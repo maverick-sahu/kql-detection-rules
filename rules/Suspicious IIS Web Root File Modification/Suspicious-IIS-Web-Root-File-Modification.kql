@@ -1,0 +1,29 @@
+// Rule Name      : Suspicious IIS Web Root File Modification
+// MITRE Tactic   : Persistence, Defense Evasion
+// MITRE Technique: T1505.003 – Web Shell
+// Severity       : High
+// Data Sources   : DeviceFileEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Authorized web deployments, application updates, web administrators, CI/CD pipelines
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects file creation, modification, deletion, or renaming within the IIS web root by non-system accounts. 
+//   - Attackers commonly modify web content or deploy web shells to IIS directories following successful exploitation, enabling persistent remote access to compromised servers.
+//
+// Tuning Notes:
+//   - Exclude approved deployment tools and automation accounts.
+//   - Correlate with IIS logs, PowerShell execution, and outbound network connections.
+//   - Prioritize executable scripts and newly created ASPX files.
+//
+DeviceFileEvents
+| where Timestamp >= ago(24h)
+| where ActionType in ("FileCreated","FileModified","FileDeleted","FileRenamed")
+| where FolderPath startswith @"C:\inetpub\wwwroot\"
+| where InitiatingProcessAccountName !has "system"
+| where InitiatingProcessAccountName !contains "svc"
+| where InitiatingProcessFileName !in~ ("TextPad.exe","notepad++.exe","notepad.exe","devenv.exe","code.exe","msdeploy.exe","msdeploycmd.exe")
+| project Timestamp, DeviceName, DeviceId, ActionType, FileName, FolderPath, SHA256, SHA1, InitiatingProcessSHA1, InitiatingProcessFileName, InitiatingProcessParentFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName, ReportId
