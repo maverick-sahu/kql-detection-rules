@@ -1,0 +1,30 @@
+// Rule Name      : Suspicious Access to Sensitive Processes
+// MITRE Tactic   : Credential Access, Defense Evasion
+// MITRE Technique: T1003.001 – OS Credential Dumping: LSASS Memory
+//                  T1055 – Process Injection
+// Severity       : High
+// Data Sources   : DeviceEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 1 hour
+// False Positives: Microsoft Defender, EDR products, security software, forensic tools
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects suspicious access to sensitive Windows processes using high-privilege process access rights or remote thread creation. 
+//   - Attackers commonly access processes such as LSASS to dump credentials or inject malicious code into trusted processes to evade detection.
+//
+// Tuning Notes:
+//   - Exclude approved EDR and security products.
+//   - Correlate with credential dumping, process injection, and privilege escalation alerts.
+//   - Investigate unsigned or uncommon processes accessing sensitive Windows processes.
+
+DeviceEvents
+| where Timestamp >= ago(1h)
+| where ActionType in ("ProcessAccessed","CreateRemoteThread")
+| extend AccessMask = tostring(parse_json(column_ifexists("AdditionalFields","{}")).GrantedAccess)
+| where FileName in~ ("lsass.exe","winlogon.exe","explorer.exe","mstsc.exe","services.exe","lsaiso.exe","csrss.exe")
+| where AccessMask in ("0x1FFFFF","0x1F3FFF","0x1010","0x143A","0x1410")
+| where InitiatingProcessFileName !in~ ("MsMpEng.exe","SenseIR.exe","SenseCE.exe","wininit.exe","csrss.exe")
+| project Timestamp, DeviceName, DeviceId, InitiatingProcessFileName, InitiatingProcessCommandLine, FileName, AccessMask, ReportId
