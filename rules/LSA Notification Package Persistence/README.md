@@ -16,8 +16,7 @@ This technique enables attackers to execute malicious code inside the Local Secu
 
 | Category | Mapping |
 |----------|---------|
-| Tactic | Persistence |
-| Tactic | Credential Access |
+| Tactic | Persistence & Credential Access |
 | Technique | T1547.002 – Authentication Package |
 
 ---
