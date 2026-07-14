@@ -1,0 +1,26 @@
+// Rule Name      : Shadow Copy Deletion Commands
+// MITRE Tactic   : Impact
+// MITRE Technique: T1490 – Inhibit System Recovery
+// Severity       : Critical
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Backup administrators, disaster recovery operations, approved maintenance scripts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects execution of commands used to delete Volume Shadow Copies or Windows backup catalogs. 
+//   - Ransomware commonly performs these actions prior to encryption to prevent recovery from backups and restore points.
+//
+// Tuning Notes:
+//   - Exclude approved backup and recovery tools.
+//   - Correlate with encryption activity, service termination, and mass file modifications.
+//   - Prioritize executions by non-administrative users or unusual parent processes.
+//
+DeviceProcessEvents
+| where Timestamp >= ago(1d)
+| where FileName in~ ("cmd.exe","powershell.exe","pwsh.exe")
+| where ProcessCommandLine has_any ("vssadmin delete shadows","wmic shadowcopy delete","wbadmin delete catalog")
+| project Timestamp,DeviceName,DeviceId,AccountName,FileName,ProcessCommandLine,InitiatingProcessFileName,InitiatingProcessParentFileName,SHA256,Method,Severity,ReportId
