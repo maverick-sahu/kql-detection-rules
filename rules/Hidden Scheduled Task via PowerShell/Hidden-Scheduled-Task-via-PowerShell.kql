@@ -1,0 +1,28 @@
+// Rule Name      : Hidden Scheduled Task via PowerShell
+// MITRE Tactic   : Persistence, Execution
+// MITRE Technique: T1053.005 – Scheduled Task
+// Severity       : High
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: System administration scripts, software deployment tools, enterprise automation platforms
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects PowerShell creating hidden scheduled tasks using execution policy bypasses, encoded commands, hidden window execution, or scheduled task cmdlets. 
+//   - Attackers commonly use PowerShell to establish persistence through hidden scheduled tasks while attempting to evade user visibility.
+//
+// Tuning Notes:
+//   - Exclude approved automation and software deployment tools.
+//   - Correlate with ScheduledTasks events, registry modifications, and PowerShell Script Block Logging.
+//   - Prioritize encoded or hidden PowerShell execution.
+
+DeviceProcessEvents
+| where Timestamp >= ago(24h)
+| where FileName in~ ("powershell.exe","pwsh.exe")
+| where ProcessCommandLine has_any ("-ExecutionPolicy Bypass","-enc","EncodedCommand","-nop","-w hidden","-windowstyle hidden")
+| where ProcessCommandLine has_any ("Hidden","<Hidden>true</Hidden>")
+| where ProcessCommandLine has_any ("schtasks","/create","Register-ScheduledTask","New-ScheduledTask")
+| project Timestamp, DeviceName, DeviceId, AccountName, FileName, FolderPath, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessParentFileName, SHA256, ReportId
