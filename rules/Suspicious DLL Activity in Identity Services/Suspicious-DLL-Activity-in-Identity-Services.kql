@@ -1,0 +1,41 @@
+// Rule Name      : Suspicious DLL Activity in Identity Services
+// MITRE Tactic   : Persistence, Credential Access, Defense Evasion
+// MITRE Technique: T1574.001 – Hijack Execution Flow: DLL Search Order Hijacking, T1055 – Process Injection
+// Severity       : Critical
+// Data Sources   : DeviceImageLoadEvents, DeviceEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 30 days
+// False Positives: Approved identity service extensions, security software, vendor-supported integrations
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects suspicious DLL loading and DLL injection targeting Microsoft Entra ID Connect and AD FS service processes from temporary or user-writable directories. 
+//   - Identity synchronization services are high-value targets for credential theft and persistence because they process privileged authentication data.
+//
+// Tuning Notes:
+//   - Exclude approved identity management extensions.
+//   - Verify DLL signatures and publishers.
+//   - Correlate with service modifications, credential access, and authentication anomalies.
+//
+let dllloadedevent = DeviceImageLoadEvents
+| where Timestamp >= ago(30d)
+| where ActionType == "ImageLoaded"
+| extend dll_loaded=FileName
+| where dll_loaded endswith ".dll"
+| where FolderPath has_any ("//tmp//","//temp//","//AppData//","//User//")
+| extend target_image=InitiatingProcessFileName
+| where target_image has_any ("AzureADConnectAuthenticationAgentService","Microsoft.IdentityServer.ServiceHost.exe","miiserver.exe")
+| project Timestamp,DeviceId,DeviceName,ActionType,dll_loaded,dll_loadedPath=FolderPath,target_image,target_imagePath=InitiatingProcessFolderPath,InitiatingProcessCommandLine,ReportId;
+let dllinjectevent=DeviceEvents
+| where Timestamp >= ago(30d)
+| where ActionType=="CreateRemoteThreadApiCall"
+| extend source_image=InitiatingProcessFileName
+| where source_image endswith ".dll"
+| where InitiatingProcessFolderPath has_any ("//tmp//","//temp//","//AppData//","//User//")
+| extend target_image=FileName
+| where target_image has_any ("AzureADConnectAuthenticationAgentService","Microsoft.IdentityServer.ServiceHost.exe","miiserver.exe")
+| project Timestamp,DeviceId,DeviceName,ActionType,source_image,source_imagePath=InitiatingProcessFolderPath,target_image,target_imagePath=FolderPath,ProcessCommandLine,ReportId;
+union dllloadedevent,dllinjectevent
+| sort by Timestamp desc
