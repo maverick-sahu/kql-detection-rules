@@ -1,0 +1,33 @@
+// Rule Name      : HID-Triggered LOLBin Execution
+// MITRE Tactic   : Initial Access, Defense Evasion, Execution
+// MITRE Technique: T1674 – Input Injection, T1218 – System Binary Proxy Execution
+// Severity       : High
+// Data Sources   : DeviceEvents, DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: USB keyboard testing, administrative automation, approved scripting tools
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects execution of Windows Living-off-the-Land Binaries (LOLBins) within 30 seconds of a USB Human Interface Device (HID) connection. 
+//   - Attackers commonly use programmable HID devices to emulate keyboard input and launch trusted Windows binaries such as mshta.exe, regsvr32.exe, or rundll32.exe to execute malicious payloads while evading traditional application controls.
+//
+// Tuning Notes:
+//   - Exclude approved HID devices where appropriate.
+//   - Correlate with network activity and persistence mechanisms.
+//   - Prioritize remote script execution and scriptlet-based payloads.
+//
+let HIDConnection = DeviceEvents
+| where Timestamp >= ago(1d)
+| where ActionType in ("PnpDeviceConnected","PnpDeviceAllowed")
+| where AdditionalFields has_any ("Keyboard","HID")
+| project DeviceId,DeviceName,HIDTime=Timestamp;
+DeviceProcessEvents
+| where Timestamp >= ago(1d)
+| where (FileName =~ "mshta.exe" and ProcessCommandLine has_any ("http://","https://",".hta")) or (FileName =~ "regsvr32.exe" and ProcessCommandLine has ".sct") or (FileName =~ "rundll32.exe" and ProcessCommandLine has "javascript:")
+| join kind=inner HIDConnection on DeviceId
+| where Timestamp >= HIDTime 
+| where Timestamp <= HIDTime + 30s
+| project Timestamp,DeviceName,DeviceId,HIDTime,ProcessTime=Timestamp,FileName,ProcessCommandLine,InitiatingProcessFileName,ReportId
