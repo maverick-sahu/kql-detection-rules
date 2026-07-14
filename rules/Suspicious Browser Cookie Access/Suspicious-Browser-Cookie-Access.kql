@@ -1,0 +1,41 @@
+// Rule Name      : Suspicious Browser Cookie Access
+// MITRE Tactic   : Credential Access
+// MITRE Technique: T1539 – Steal Web Session Cookie
+// Severity       : High
+// Data Sources   : DeviceFileEvents, DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Approved browsers, EDR products, backup software, forensic tools, enterprise synchronization utilities
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   Detects browser cookie database access by processes other than the associated
+//   browser. The rule combines Windows file access telemetry with cross-platform
+//   process execution telemetry to identify attempts to access browser cookies,
+//   a common technique used by infostealers to hijack authenticated web sessions.
+//
+// Tuning Notes:
+//   - Exclude approved security, backup, and forensic applications.
+//   - Correlate with archive creation, outbound network connections, and browser credential store access.
+//   - Prioritize unsigned or recently executed processes.
+//
+let WindowsCookieAccess = DeviceFileEvents
+| where Timestamp >= ago(24h)
+| where FolderPath matches regex @"(?i)C:\\Users\\[^\\]+\\AppData\\(Local|Roaming)\\(Google\\Chrome|Chromium|Microsoft\\Edge|BraveSoftware\\Brave-Browser)\\User Data\\(Default|Profile \d+)\\(Network\\)?Cookies|C:\\Users\\[^\\]+\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\[^\\]+\\cookies\.sqlite|C:\\Users\\[^\\]+\\AppData\\Roaming\\Opera Software\\Opera Stable\\.*\\Cookies"
+| where FileName has_any ("Cookies","cookies.sqlite","Cookies.binarycookies")
+| where InitiatingProcessFileName !in~ ("chrome.exe","msedge.exe","firefox.exe","brave.exe","chromium.exe","google-chrome.exe","opera.exe","Landmine.exe")
+| where not(FileName has_any ("Cookies-journal","Reporting and NEL-journal","Cookies") and FolderPath contains @"Microsoft\Edge\User Data\Default\Network")
+| extend DetectionSource="DeviceFileEvents"
+| project Timestamp, ReportId, DeviceId, DeviceName, AccountName=RequestAccountName, FileName, FolderPath, InitiatingProcessFileName, InitiatingProcessCommandLine, DetectionSource;
+let MacCookieAccess = DeviceProcessEvents
+| where Timestamp >= ago(24h)
+| where ProcessCommandLine matches regex @"(?i).*(Cookies(\.sqlite|\.binarycookies)?)(\s|$)"
+| where not(InitiatingProcessFileName matches regex @"(?i)\b(google\s*chrome|chrome(\.exe)?|microsoft\s*edge|msedge(\.exe)?|brave(\s*browser|\.exe)?|safari|firefox(\.exe)?|opera(\.exe)?|chromium|jspawnhelper|kakaotalk(\.exe)?|outlook(\.exe)?|slack(\.exe)?|webstorm|code\s*helper|acrobat(\.exe)?|avgbrowser(update|installer)(\.exe)?|java|cephtmlengine)\b")
+| where AdditionalFields matches regex @"(?i)(Library/(Application Support/(Google/Chrome|Microsoft Edge|BraveSoftware/Brave-Browser|Vivaldi|Chromium|com\.operasoftware\.Opera|Opera|Firefox/Profiles/[^/]+|Firefox)|Containers/com\.apple\.Safari/Data/Library)/.*(Cookies(\.sqlite|\.binarycookies)?))"
+| where InitiatingProcessAccountName !contains_cs "root"
+| extend DetectionSource="DeviceProcessEvents"
+| project Timestamp, ReportId, DeviceId, DeviceName, AccountName, FileName, FolderPath, InitiatingProcessFileName, InitiatingProcessCommandLine=ProcessCommandLine, DetectionSource;
+union WindowsCookieAccess, MacCookieAccess
+| project Timestamp, DeviceName, DeviceId, AccountName, DetectionSource, FileName, FolderPath, InitiatingProcessFileName, InitiatingProcessCommandLine, ReportId
