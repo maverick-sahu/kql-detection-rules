@@ -1,0 +1,30 @@
+// Rule Name      : Sensitive System DLL Modification
+// MITRE Tactic   : Defense Evasion, Persistence
+// MITRE Technique: T1574.001 – DLL Search Order Hijacking & T1036 – Masquerading
+// Severity       : High
+// Data Sources   : DeviceFileEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Windows servicing, Windows Update, trusted installers, authorized system maintenance
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   Detects creation, modification, renaming, or deletion of sensitive Windows
+//   system DLLs (cryptdll.dll and samsrv.dll) within protected system directories.
+//   These DLLs are critical to Windows authentication and cryptographic operations.
+//   Unauthorized modifications may indicate attempts to establish persistence,
+//   tamper with authentication mechanisms, or evade security controls.
+//
+// Tuning Notes:
+//   - Exclude trusted Windows servicing processes and approved software deployment tools.
+//   - Validate file signatures and hashes.
+//   - Correlate with service installation, registry modifications, and credential access activity.
+//
+DeviceFileEvents
+| where Timestamp >= ago(1d)
+| where FileName in~ ("cryptdll.dll","samsrv.dll")
+| where FolderPath startswith @"C:\Windows\System32\" or FolderPath startswith @"C:\Windows\SysWOW64\"
+| where ActionType in ("FileCreated","FileModified","FileRenamed","FileDeleted")
+| project Timestamp, DeviceName, DeviceId, ActionType, FileName, FolderPath, SHA1, SHA256, InitiatingProcessFileName, InitiatingProcessParentFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName, ReportId
