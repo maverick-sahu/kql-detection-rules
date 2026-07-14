@@ -1,0 +1,45 @@
+// Rule Name      : Suspicious AT Job Followed by LOLBin Execution
+// MITRE Tactic   : Persistence, Execution
+// MITRE Technique: T1053.002 – Scheduled Task/Job: At, T1218 – System Binary Proxy Execution
+// Severity       : High
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Approved administrative jobs, enterprise automation, software deployment tools
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   Detects legacy scheduled job creation using AT.exe or Win32_ScheduledJob
+//   followed by execution of commonly abused Living-off-the-Land Binaries
+//   (LOLBins). Attackers frequently leverage scheduled jobs to establish
+//   persistence or delayed execution while using trusted Windows binaries to
+//   evade detection.
+//
+// Tuning Notes:
+//   - Maintain exclusions for known Windows maintenance tasks.
+//   - Correlate with service creation, persistence mechanisms, and outbound network activity.
+//   - Prioritize PowerShell, MSHTA, and Rundll32 executions.
+//
+let JobCreation = union(DeviceProcessEvents
+    | where Timestamp >= ago(1d)
+    | where FileName =~ "at.exe"
+    | project DeviceId,ReportId,DeviceName,CreationTime=Timestamp,AccountName,Method="AT",FileName,FolderPath,CommandLine=ProcessCommandLine,InitiatingProcessParentFileName
+),
+(
+    DeviceProcessEvents
+    | where Timestamp >= ago(1d)
+    | where ProcessCommandLine has "Win32_ScheduledJob"
+    | project DeviceId,ReportId,DeviceName,CreationTime=Timestamp,AccountName,Method="WMI",FileName,FolderPath,CommandLine=ProcessCommandLine,InitiatingProcessParentFileName
+);
+let SuspiciousExecution = DeviceProcessEvents
+| where Timestamp >= ago(1d)
+| where InitiatingProcessFileName in~ ("svchost.exe","taskeng.exe")
+| where FileName in~ ("powershell.exe","pwsh.exe","cmd.exe","wscript.exe","cscript.exe","mshta.exe","rundll32.exe","regsvr32.exe","certutil.exe","bitsadmin.exe")
+| project DeviceId,ReportId,FileName,ExecutionTime=Timestamp,DeviceName,AccountName,ProcessCommandLine,InitiatingProcessFileName,InitiatingProcessFolderPath,InitiatingProcessAccountName,InitiatingProcessParentFileName;
+JobCreation
+| join kind=inner SuspiciousExecution on DeviceId
+| where ExecutionTime >= CreationTime
+| where ExecutionTime <= CreationTime + 6h
+| project CreationTime,ExecutionTime,DeviceName,DeviceId,AccountName,Method,FileName,CommandLine,ProcessCommandLine,InitiatingProcessFileName,InitiatingProcessParentFileName,ReportId
