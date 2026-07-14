@@ -1,0 +1,29 @@
+// Rule Name      : Suspicious Python Script Execution from Downloads
+// MITRE Tactic   : Execution
+// MITRE Technique: T1059.006 – Command and Scripting Interpreter: Python
+// Severity       : High
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Developers, automation scripts, data science tools, approved administrative scripts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects Python interpreters executing scripts from the user's Downloads directory when launched by applications commonly used to retrieve or open files (such as browsers, Outlook, or Microsoft Office) and spawned through a command shell or scripting engine. 
+//   - This behavior may indicate execution of a recently downloaded malicious Python script.
+//
+// Tuning Notes:
+//   - Exclude approved developer workstations and automation environments.
+//   - Correlate with file download events and outbound network connections.
+//   - Prioritize unsigned scripts or executions from user-writable directories.
+//
+DeviceProcessEvents
+| where Timestamp >= ago(1d)
+| where FileName in~ ("python.exe","python3.exe","py.exe","python3.6","python3.7","python3.8","python3.9","python3.10","python3.11","python3.12","python3.13","python3.14","python2.7")
+| where ProcessCommandLine has_any (".py","python.exe","pyc")
+| where ProcessCommandLine has "\\Downloads\\"
+| where InitiatingProcessFileName in~ ("chrome.exe","msedge.exe","firefox.exe","outlook.exe","winword.exe","excel.exe")
+| where InitiatingProcessParentFileName has_any ("cmd.exe","powershell.exe","wscript.exe","csscript.exe")
+| project Timestamp, DeviceName, DeviceId, AccountName, FileName, FolderPath, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessParentFileName, SHA256, ReportId
