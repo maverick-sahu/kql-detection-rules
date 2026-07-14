@@ -1,0 +1,26 @@
+// Rule Name      : Suspicious Winlogon DLL Load
+// MITRE Tactic   : Persistence, Credential Access
+// MITRE Technique: T1556.008 – Network Provider DLL
+// Severity       : High
+// Data Sources   : DeviceImageLoadEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Citrix SSO components, approved credential providers, enterprise identity solutions
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects DLLs loaded by winlogon.exe from outside trusted Windows system directories. 
+//   - Attackers may abuse Network Provider DLLs or credential providers to execute malicious code during user logon, establish persistence, or intercept authentication events.
+//
+// Tuning Notes:
+//   - Exclude approved credential providers and Citrix SSO DLLs.
+//   - Verify whether the loaded DLL is Microsoft-signed.
+//   - Correlate with Network Provider registry modifications and DLL creation events.
+//
+DeviceImageLoadEvents
+| where Timestamp >= ago(1d)
+| where InitiatingProcessFileName =~ "winlogon.exe"
+| where FileName endswith ".dll"
+| project Timestamp, DeviceName, DeviceId, FileName, FolderPath, SHA1, SHA256, InitiatingProcessFileName, InitiatingProcessCommandLine, ReportId
