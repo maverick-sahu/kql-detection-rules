@@ -11,10 +11,8 @@
 // Last Updated   : 2026-07-09
 //
 // Description:
-//   Detects browser cookie database access by processes other than the associated
-//   browser. The rule combines Windows file access telemetry with cross-platform
-//   process execution telemetry to identify attempts to access browser cookies,
-//   a common technique used by infostealers to hijack authenticated web sessions.
+//   - Detects browser cookie database access by processes other than the associated browser. 
+//   - The rule combines Windows file access telemetry with cross-platform process execution telemetry to identify attempts to access browser cookies, a common technique used by infostealers to hijack authenticated web sessions.
 //
 // Tuning Notes:
 //   - Exclude approved security, backup, and forensic applications.
