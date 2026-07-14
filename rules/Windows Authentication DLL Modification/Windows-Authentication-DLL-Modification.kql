@@ -11,12 +11,9 @@
 // Last Updated   : 2026-07-09
 //
 // Description:
-//   Detects creation, modification, deletion, or renaming of cryptdll.dll and
-//   samsrv.dll within protected Windows system directories. These DLLs are
-//   critical components of the Windows authentication and cryptographic
-//   infrastructure. Unauthorized modification may indicate attempts to tamper
-//   with the Windows authentication process, establish persistence, or evade
-//   security controls.
+//   - Detects creation, modification, deletion, or renaming of cryptdll.dll and samsrv.dll within protected Windows system directories. 
+//   - These DLLs are critical components of the Windows authentication and cryptographic infrastructure. 
+//   - Unauthorized modification may indicate attempts to tamper with the Windows authentication process, establish persistence, or evade security controls.
 //
 // Tuning Notes:
 //   - Exclude trusted Windows servicing processes after validation.
