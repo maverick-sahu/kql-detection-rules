@@ -1,0 +1,27 @@
+// Rule Name      : Network Provider Registry Modification
+// MITRE Tactic   : Persistence, Credential Access
+// MITRE Technique: T1556.008 – Network Provider DLL
+// Severity       : High
+// Data Sources   : DeviceRegistryEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Legitimate network provider installation, endpoint security software, enterprise identity solutions
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects registry modifications associated with Windows Network Providers.
+//   - Attackers may register a malicious Network Provider DLL to execute code during user logon, establish persistence, intercept authentication traffic, or capture credentials.
+//
+// Tuning Notes:
+//   - Exclude approved network provider installations.
+//   - Validate referenced DLLs and their digital signatures.
+//   - Correlate with DLL creation, service installation, and authentication activity.
+//
+DeviceRegistryEvents
+| where Timestamp >= ago(1d)
+| where ActionType in ("RegistryValueSet","RegistryKeyCreated")
+| where RegistryKey contains @"Control\NetworkProvider" or RegistryKey contains @"\Services\"
+| where RegistryValueName in~ ("NetworkProvider","Order")
+| project Timestamp, DeviceName, DeviceId, RegistryKey, RegistryValueName, RegistryValueData, ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName, InitiatingProcessAccountDomain, ReportId
