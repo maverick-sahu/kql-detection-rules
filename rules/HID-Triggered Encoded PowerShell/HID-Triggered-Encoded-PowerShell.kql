@@ -1,0 +1,35 @@
+// Rule Name      : HID-Triggered Encoded PowerShell
+// MITRE Tactic   : Initial Access, Execution, Defense Evasion
+// MITRE Technique: T1674 – Input Injection, T1059.001 – Command and Scripting Interpreter: PowerShell
+// Severity       : High
+// Data Sources   : DeviceEvents, DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Security testing, approved administrative automation, endpoint provisioning scripts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects obfuscated or encoded PowerShell execution occurring within two minutes of a USB Human Interface Device (HID) connection. 
+//   - Programmable HID devices commonly emulate keyboard input to launch hidden or encoded PowerShell commands for payload delivery and defense evasion.
+//
+// Tuning Notes:
+//   - Exclude approved automation and penetration testing activities.
+//   - Correlate with outbound network connections and persistence mechanisms.
+//   - Prioritize encoded commands, hidden execution, and download-and-execute behavior.
+//
+let HIDConnection = DeviceEvents
+| where Timestamp >= ago(1d)
+| where ActionType in ("PnpDeviceConnected","PnpDeviceAllowed")
+| where AdditionalFields has_any ("Keyboard","HID")
+| project DeviceId,DeviceName,HIDTime=Timestamp;
+DeviceProcessEvents
+| where Timestamp >= ago(1d)
+| where FileName in~ ("powershell.exe","pwsh.exe")
+| where ProcessCommandLine has_any ("-enc","-encodedcommand")
+| where ProcessCommandLine has_any ("-windowstyle hidden","-w hidden","-nop","iex(","invoke-expression")
+| join kind=inner HIDConnection on DeviceId
+| where Timestamp >= HIDTime
+| where Timestamp <= HIDTime + 2m
+| project Timestamp,DeviceName,DeviceId,HIDTime,PowerShellTime=Timestamp,FileName,ProcessCommandLine,InitiatingProcessFileName,ReportId
