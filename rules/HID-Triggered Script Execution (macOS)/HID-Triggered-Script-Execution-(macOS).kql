@@ -1,0 +1,41 @@
+// Rule Name      : HID-Triggered Script Execution (macOS)
+// MITRE Tactic   : Initial Access, Execution
+// MITRE Technique: T1674 – Input Injection
+// Severity       : High
+// Data Sources   : DeviceInfo, DeviceEvents, DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: USB keyboard testing, developer automation, approved administrative scripts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects suspicious script execution occurring within 30 seconds of a USB/HID device connection on macOS. 
+//   - Attackers using programmable HID devices (e.g., Rubber Ducky or O.MG Cable) commonly emulate keyboard input to execute malicious AppleScript, shell, or Python commands immediately after connection.
+//
+// Tuning Notes:
+//   - Exclude trusted USB devices where appropriate.
+//   - Correlate with outbound network connections and persistence mechanisms.
+//   - Prioritize encoded commands and download-and-execute behavior.
+//
+let MacDevices = DeviceInfo
+| where OSPlatform == "macOS"
+| distinct DeviceId;
+let HIDConnection = DeviceEvents
+| where Timestamp >= ago(1d)
+| where ActionType in ("PnpDeviceConnected","UsbDriveMounted")
+| where AdditionalFields has_any ("Keyboard","HID","Apple Internal Keyboard","USB")
+| join kind=inner MacDevices on DeviceId
+| project DeviceId, DeviceName, HIDTime=Timestamp, ActionType, AdditionalFields;
+let SuspiciousScriptExecution = DeviceProcessEvents
+| where Timestamp >= ago(1d)
+| join kind=inner MacDevices on DeviceId
+| where FileName in~ ("osascript","python","python3","bash","zsh","sh")
+| where (FileName =~ "osascript") or (FileName in~ ("python","python3") and ProcessCommandLine has_any ("-c","exec(","subprocess","os.system","pty.spawn")) or (FileName in~ ("bash","zsh","sh") and ProcessCommandLine has_any ("curl ","wget ","osascript","python","chmod +x","base64"))
+| project DeviceId,ScriptTime=Timestamp,FileName,InitiatingProcessFileName,ProcessCommandLine;
+HIDConnection
+| join kind=inner SuspiciousScriptExecution on DeviceId
+| where ScriptTime >= HIDTime
+| where ScriptTime <= HIDTime + 30s
+| project DeviceName,DeviceId,HIDTime,ScriptTime,FileName,InitiatingProcessFileName,ProcessCommandLine,AdditionalFields
