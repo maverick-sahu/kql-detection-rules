@@ -1,0 +1,27 @@
+// Rule Name      : Defender Configuration Tampering via PowerShell
+// MITRE Tactic   : Defense Evasion
+// MITRE Technique: T1562.001 – Impair Defenses: Disable or Modify Security Tools
+// Severity       : Critical
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 1 hour
+// False Positives: Approved administrative configuration changes, endpoint management tools, security baselining scripts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects PowerShell attempts to modify Microsoft Defender Antivirus settings using Set-MpPreference. 
+//   - Attackers commonly disable or weaken Defender protections before executing malware, ransomware, or post-exploitation tools.
+//
+// Tuning Notes:
+//   - Exclude approved endpoint management and security administration tools.
+//   - Correlate with subsequent malware execution, service changes, and Defender alerts.
+//   - Investigate all unauthorized Defender configuration modifications.
+//
+DeviceProcessEvents
+| where Timestamp >= ago(1h)
+| where FileName in~ ("powershell.exe","pwsh.exe")
+| where ProcessCommandLine has "Set-MpPreference"
+| where ProcessCommandLine has_any ("DisableRealtimeMonitoring","DisableBehaviorMonitoring","DisableBlockAtFirstSeen","DisableIOAVProtection","DisableIntrusionPreventionSystem","DisableScriptScanning","MAPSReporting 0","SubmitSamplesConsent 2")
+| project Timestamp,DeviceId,ReportId,DeviceName,AccountName,FileName,ProcessCommandLine,InitiatingProcessFileName
