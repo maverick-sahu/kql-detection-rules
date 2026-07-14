@@ -1,0 +1,35 @@
+// Rule Name      : Suspicious Shell History Access
+// MITRE Tactic   : Discovery
+// MITRE Technique: T1083 – File and Directory Discovery, T1552.001 – Unsecured Credentials: Credentials in Files
+// Severity       : Medium
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Approved forensic tools, endpoint management software, developer utilities
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects repeated non-interactive access to Bash and Zsh history files.
+//   - Threat actors frequently inspect shell history after compromising a macOS or Linux system to recover credentials, discover administrative commands, identify cloud tooling, and enumerate user activity.
+//
+// Tuning Notes:
+//   - Maintain exclusions for approved developer and endpoint management tools.
+//   - Correlate with SSH activity, credential access, and archive creation.
+//   - Investigate repeated access by unexpected processes.
+//
+DeviceProcessEvents
+| where Timestamp >= ago(24h)
+| where AccountName !in ("system","root")
+| where ProcessCommandLine matches regex @"(cat|tac|grep|awk|sed|less|more|tail|head|sort|strings)\s+.*\/\.(bash_history|zsh_history)"
+| where not(ProcessCommandLine contains ".claude/shell-snapshots/" or ProcessCommandLine contains ".local" or (ProcessCommandLine contains "/bin/zsh -c" and ProcessCommandLine contains "roots") or ProcessCommandLine contains ".bzr")
+| where InitiatingProcessFileName !in~ ("Terminal","iTerm2","bash","zsh")
+| where not(ProcessCommandLine contains "/Applications/Cursor.app/Contents/Resources/app/resources/helpers/cursorsandbox" or InitiatingProcessFolderPath contains "/Applications/Cursor.app/Contents/Resources/app/resources/helpers/cursorsandbox")
+| where InitiatingProcessFolderPath !has "/usr/bin/sandbox-exec"
+| where InitiatingProcessFileName !has "cursorsandbox"
+| summarize ExecutionCount=count() by DeviceName,AccountName,FileName,ProcessCommandLine,InitiatingProcessCommandLine,InitiatingProcessFileName,bin(Timestamp,15m)
+| where ExecutionCount >= 2
+| extend Severity="Medium",Method="Repeated non-interactive shell history access"
+| project Timestamp,DeviceName,AccountName,FileName,InitiatingProcessFileName,ProcessCommandLine,InitiatingProcessCommandLine,ExecutionCount,Method,Severity
+| sort by Timestamp desc
