@@ -1,0 +1,26 @@
+// Rule Name      : Suspicious LSASS Authentication DLL Load
+// MITRE Tactic   : Persistence, Credential Access
+// MITRE Technique: T1556 – Modify Authentication Process
+// Severity       : Critical
+// Data Sources   : DeviceImageLoadEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Approved authentication providers, security software, enterprise identity solutions
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects LSASS loading authentication-related DLLs (cryptdll.dll or samsrv.dll) from locations outside trusted Windows system directories.
+//   - Because these DLLs are expected to load only from System32 or SysWOW64, loading them from alternate locations may indicate authentication process tampering, persistence, or credential theft.
+//
+// Tuning Notes:
+//   - Exclude approved authentication providers after validation.
+//   - Verify the DLL's digital signature and publisher.
+//   - Correlate with DLL creation, registry modifications, and credential dumping alerts.
+//
+DeviceImageLoadEvents
+| where Timestamp >= ago(1d)
+| where InitiatingProcessFileName =~ "lsass.exe"
+| where FileName in~ ("cryptdll.dll","samsrv.dll")
+| project Timestamp, DeviceName, DeviceId, FileName, FolderPath, SHA1, SHA256, InitiatingProcessFileName, InitiatingProcessCommandLine, ReportId
