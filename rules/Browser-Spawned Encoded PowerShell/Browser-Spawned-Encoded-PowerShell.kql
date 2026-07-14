@@ -1,0 +1,27 @@
+// Rule Name      : Browser-Spawned Encoded PowerShell
+// MITRE Tactic   : Initial Access, Execution
+// MITRE Technique: T1059.001 – Command and Scripting Interpreter: PowerShell
+// Severity       : High
+// Data Sources   : DeviceProcessEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 1 hour
+// False Positives: Enterprise web applications, approved browser automation, administrative scripts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects encoded or obfuscated PowerShell execution spawned by a web browser.
+//   - Threat actors frequently leverage browsers as the initial execution point for phishing, ClickFix campaigns, drive-by downloads, and malicious file delivery, resulting in PowerShell execution using encoded commands or in-memory execution.
+//
+// Tuning Notes:
+//   - Exclude approved browser automation if required.
+//   - Correlate with downloaded files and outbound network connections.
+//   - Prioritize executions from user download directories.
+//
+DeviceProcessEvents
+| where Timestamp >= ago(1h)
+| where InitiatingProcessFileName in~ ("chrome.exe","msedge.exe","firefox.exe") or InitiatingProcessParentFileName in~ ("chrome.exe","msedge.exe","firefox.exe")
+| where FileName in~ ("powershell.exe","pwsh.exe")
+| where ProcessCommandLine has_any ("-enc","-encodedcommand","FromBase64String","IEX","Invoke-Expression")
+| project Timestamp,DeviceName,DeviceId,AccountName,FileName,ProcessCommandLine,InitiatingProcessFileName,InitiatingProcessParentFileName,SHA256,ReportId
