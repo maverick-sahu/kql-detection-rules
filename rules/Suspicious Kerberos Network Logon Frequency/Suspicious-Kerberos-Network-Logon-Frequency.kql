@@ -1,0 +1,28 @@
+// Rule Name      : Suspicious Kerberos Network Logon Frequency
+// MITRE Tactic   : Lateral Movement, Credential Access
+// MITRE Technique: T1558.002 – Steal or Forge Kerberos Tickets: Silver Ticket
+// Severity       : Medium
+// Data Sources   : DeviceLogonEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: File servers, application servers, management servers, legitimate automation accounts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects unusually frequent Kerberos network logons from the same user account within a short time window. 
+//   - Excessive Kerberos authentication activity may indicate abuse of forged Kerberos service tickets (Silver Tickets), lateral movement, or automated authentication attempts.
+//
+// Tuning Notes:
+//   - Adjust the logon threshold to match the environment.
+//   - Exclude approved service accounts and automation.
+//   - Correlate with service ticket requests, unusual service access, and Kerberos anomalies.
+//
+DeviceLogonEvents
+| where Timestamp >= ago(24h)
+| where LogonType == "Network"
+| where Protocol == "Kerberos"
+| summarize LogonCount=count(), FirstSeen=min(Timestamp), LastSeen=max(Timestamp) by DeviceName,AccountName
+| where LogonCount > 5
+| project FirstSeen, LastSeen, DeviceName, AccountName, LogonCount
