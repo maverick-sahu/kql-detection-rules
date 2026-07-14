@@ -1,0 +1,28 @@
+// Rule Name      : Suspicious Kerberos Cache File Access
+// MITRE Tactic   : Credential Access
+// MITRE Technique: T1558 – Steal or Forge Kerberos Tickets
+// Severity       : High
+// Data Sources   : DeviceFileEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Legitimate Kerberos administration, developer tools, enterprise authentication software
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects creation or access of Kerberos credential cache (ccache) files on macOS outside expected user and temporary directories. 
+//   - Attackers frequently target Kerberos cache files to steal valid tickets for lateral movement, privilege escalation, and unauthorized authentication.
+//
+// Tuning Notes:
+//   - Exclude approved Kerberos administration tools.
+//   - Correlate with kinit execution, SSH activity, and lateral movement.
+//   - Prioritize access from unsigned or unexpected processes.
+
+DeviceFileEvents
+| where Timestamp >= ago(24h)
+| where not(InitiatingProcessAccountName has_any ("root","system"))
+| where FileName matches regex @"^krb5cc_\d+" or FileName has "ccache"
+| where InitiatingProcessFileName !in~ ("kinit","login","sudo","ssh")
+| where ActionType in ("FileCreated","FileAccessed","FileRead")
+| project Timestamp, DeviceName, DeviceId, FileName, FolderPath, ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName, SHA256, ReportId
