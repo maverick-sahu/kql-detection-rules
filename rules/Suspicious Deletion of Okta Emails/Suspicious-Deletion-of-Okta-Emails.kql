@@ -1,0 +1,35 @@
+// Rule Name      : Suspicious Deletion of Okta Emails
+// MITRE Tactic   : Defense Evasion, Credential Access
+// MITRE Technique: T1070.008 – Indicator Removal on Host: Clear Mailbox Data
+// Severity       : High
+// Data Sources   : EmailEvents, CloudAppEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: User mailbox cleanup, mailbox rules, approved email retention policies
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   Detects deletion of Okta-generated emails from Exchange Online. Attackers may delete MFA notifications, password reset emails, or security alerts after compromising an account to reduce the likelihood of user detection.
+//
+// Tuning Notes:
+//   - Exclude approved mailbox retention or automation rules.
+//   - Correlate with Okta sign-in events and mailbox rule creation.
+//   - Prioritize deletions occurring shortly after email delivery.
+
+let EmailData = EmailEvents
+| where Timestamp >= ago(24h)
+| where SenderFromAddress endswith "okta.com"
+| project NetworkMessageId,SenderFromAddress,Subject,RecipientEmailAddress,EmailTime=Timestamp;
+CloudAppEvents
+| where Timestamp >= ago(24h)
+| where Application == "Microsoft Exchange Online"
+| where ActionType in ("SoftDelete","HardDelete","MoveToDeletedItems")
+| where isnotempty(RawEventData)
+| extend NetworkMessageId=tostring(parse_json(RawEventData).NetworkMessageId)
+| where isnotempty(NetworkMessageId)
+| join kind=inner EmailData on NetworkMessageId
+| where Timestamp >= EmailTime
+| where Timestamp <= EmailTime + 30m
+| project Timestamp,RecipientEmailAddress,Subject,SenderFromAddress,ActionType,IPAddress,UserAgent
