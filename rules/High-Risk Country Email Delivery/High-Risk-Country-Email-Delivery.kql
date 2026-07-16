@@ -1,0 +1,31 @@
+// Rule Name      : High-Risk Country Email Delivery
+// MITRE Tactic   : Initial Access
+// MITRE Technique: T1566 – Phishing
+// Severity       : Medium
+// Data Sources   : EmailEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Legitimate business communications, international partners, security testing
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects inbound emails delivered from sender IP addresses geolocated to predefined high-risk countries. 
+//   - While country of origin alone is not indicative of malicious intent, this rule helps identify email activity that may warrant additional scrutiny, particularly when combined with phishing indicators or threat intelligence.
+//
+// Tuning Notes:
+//   - Adjust the country list to align with organizational risk policies.
+//   - Correlate with phishing detections, malicious attachments, and URL clicks.
+//   - Review sender reputation before escalating.
+//
+EmailEvents
+| where Timestamp >= ago(1d)
+| where EmailDirection == "Inbound"
+| where isnotempty(SenderIPv4)
+| extend GeoInfo=geo_info_from_ip_address(SenderIPv4)
+| where LatestDeliveryLocation != "Quarantine"
+| extend Country=tostring(parse_json(GeoInfo).country)
+| where Country in~ ("Iran","Ukraine","Cuba","North Korea","Russia","Syria","Sudan","Venezuela","Belarus","Myanmar","Nicaragua")
+| summarize Count=count() by Timestamp,SenderFromAddress,SenderIPv4,Country,ThreatTypes,Subject,RecipientEmailAddress,LatestDeliveryLocation
+| project Timestamp,SenderFromAddress,SenderIPv4,Country,RecipientEmailAddress,Subject,ThreatTypes,LatestDeliveryLocation,Count
