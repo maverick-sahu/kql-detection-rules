@@ -1,0 +1,27 @@
+// Rule Name      : Suspicious Shell History Modification
+// MITRE Tactic   : Defense Evasion
+// MITRE Technique: T1070.003 – Indicator Removal on Host: Clear Command History
+// Severity       : High
+// Data Sources   : DeviceFileEvents
+// Platform       : Microsoft Defender XDR → Advanced Hunting
+// Frequency      : Every 30 minutes
+// Lookback       : 24 hours
+// False Positives: Terminal applications, shell initialization, approved administrative scripts
+// Author         : Raunak Sahu
+// Last Updated   : 2026-07-09
+//
+// Description:
+//   - Detects modification, deletion, creation, or renaming of shell history files by non-shell processes. 
+//   - Threat actors frequently clear or manipulate command history to remove evidence of post-compromise activity.
+//
+// Tuning Notes:
+//   - Consider monitoring both .bash_history and .zsh_history.
+//   - Exclude approved administration or endpoint management tools.
+//   - Correlate with SSH sessions and privilege escalation activity.
+//
+DeviceFileEvents
+| where Timestamp >= ago(1d)
+| where FileName in~ (".bash_history",".zsh_history")
+| where ActionType in ("FileModified","FileDeleted","FileRenamed","FileCreated")
+| where InitiatingProcessFileName !in~ ("bash","zsh","sh","Terminal","iTerm2")
+| project Timestamp,DeviceName,InitiatingProcessAccountName,InitiatingProcessFileName,InitiatingProcessCommandLine,FileName,ActionType,ReportId
